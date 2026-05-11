@@ -10,16 +10,39 @@ Escalation order on safety block:
 from __future__ import annotations
 
 import asyncio
+import contextvars
 import logging
 import os
 import re
 from dataclasses import dataclass, field
 from typing import TypeVar
 
+import litellm
 from litellm import acompletion
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
+
+# Per-pipeline-run cost accumulator. ContextVar so asyncio.gather() tasks
+# inherit the same context and all concurrent LLM calls contribute.
+_PIPELINE_COST_USD: contextvars.ContextVar[float] = contextvars.ContextVar(
+    "_PIPELINE_COST_USD", default=0.0
+)
+
+
+def add_pipeline_cost(usd: float) -> None:
+    """Add to the per-context cost accumulator."""
+    try:
+        _PIPELINE_COST_USD.set(_PIPELINE_COST_USD.get() + float(usd))
+    except Exception:
+        pass
+
+
+def consume_pipeline_cost() -> float:
+    """Return the current accumulator value and reset it to 0."""
+    total = _PIPELINE_COST_USD.get()
+    _PIPELINE_COST_USD.set(0.0)
+    return total
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -127,6 +150,12 @@ class LLMClient:
         for attempt in range(max_rate_retries):
             try:
                 resp = await acompletion(**kwargs)
+                # Track per-call cost in the pipeline accumulator
+                try:
+                    call_cost = float(litellm.completion_cost(completion_response=resp))
+                except Exception:
+                    call_cost = 0.0
+                add_pipeline_cost(call_cost)
                 content = resp.choices[0].message.content
                 return schema.model_validate_json(_strip_md_fences(content))
             except Exception as e:
