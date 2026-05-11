@@ -1,0 +1,14 @@
+{
+  "results": [
+    {
+      "openfda": {
+        "brand_name": ["Zantac"],
+        "generic_name": ["Ranitidine HCl"],
+        "manufacturer_name": ["GlaxoSmithKline"]
+      },
+      "indications_and_usage": ["For short-term treatment of duodenal ulcers."],
+      "warnings": ["Ranitidine has been associated with NDMA contamination."],
+      "id": "abc-123"
+    }
+  ]
+}
