@@ -24,8 +24,11 @@ def _env() -> Environment:
 
 def _md_to_html(md_text: str) -> str:
     # gfm-like preset enables tables (commonmark profile doesn't).
-    # Also enable linkify so bare URLs become hyperlinks.
-    return MarkdownIt("gfm-like").enable(["linkify", "table"]).render(md_text)
+    # NOTE: linkify is intentionally NOT enabled — it requires the optional
+    # linkify-it-py package. The LLM uses [text](url) syntax which is parsed
+    # by the standard inline rules; bare URLs would also be fine without
+    # linkify since they appear in markdown link form already.
+    return MarkdownIt("gfm-like").enable("table").render(md_text)
 
 
 # Branded CSS used for polished PDFs (the WeasyPrint stylesheet).
