@@ -19,7 +19,7 @@ Procurement intelligence reports for medical substances. Type a substance, get a
 
 ```mermaid
 flowchart LR
-    U[User query<br/>"ranitidine"]
+    U["User query<br/>ranitidine"]
     QP[query_planner<br/>+ RxNav normalize]
     ORCH[orchestrator<br/>source-routing]
     R1[Tavily<br/>web/market]
