@@ -22,7 +22,11 @@ from mentis.schemas import SectionDraft, SectionName, Snippet
 logger = logging.getLogger(__name__)
 
 SYNTH_VERSION = "v1"
-_LLM_SEMAPHORE = asyncio.Semaphore(1)  # Sequential — Gemini free tier limits
+# Concurrency: previously gated by a module-level asyncio.Semaphore for Gemini/Groq
+# free-tier rate limits. That broke under Gradio's per-request event loop (the
+# semaphore got loop-bound on first use, then second request hit
+# 'bound to a different event loop'). On Azure GPT-4o, parallel section calls
+# work fine — rate-limit retry in mentis.llm._call handles any 429s anyway.
 SYSTEM_PROMPT = (
     "You output strictly valid JSON. Cite only the URLs provided in the snippets list. "
     "Never invent URLs or claims."
@@ -112,7 +116,7 @@ async def synthesize_section(
     allowed_urls = {str(s.url) for s in snippets}
 
     async def _attempt():
-        async with _LLM_SEMAPHORE:
+        if True:  # was `async with _LLM_SEMAPHORE`; removed for event-loop safety
             if llm_complete is None:
                 return await _default_llm_complete(
                     llm_config=llm_config,
