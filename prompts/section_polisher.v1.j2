@@ -1,0 +1,42 @@
+You are polishing one section of a procurement intelligence report on {{ user_query }}.
+
+# The section
+
+Name: **{{ section_name }}**
+
+Original prose (preserve VERBATIM in your output):
+
+```
+{{ original_prose }}
+```
+
+# Allowed URLs (the ONLY URLs you may put in the table)
+
+{% for url in allowed_urls %}- {{ url }}
+{% endfor %}
+
+# Your task
+
+Output a polished version of this section in this exact shape:
+
+1. One bold headline sentence stating the section's key finding.
+2. ONE compact markdown table (3-6 rows, 3-5 columns). The last column MUST be "Source" and each cell must be `[Source](url)` linking to one of the allowed URLs above. The table summarises facts already present in the prose.
+3. A blank line.
+4. The ORIGINAL prose, character-for-character unchanged. Do NOT shorten paragraphs, do NOT drop sentences, do NOT remove citations. Reproduce it exactly.
+
+Recommended table columns by section_name:
+- product_profile: Attribute | Value | Source
+- clinical_use: Indication / Mechanism | Detail | Source
+- market_demand: Year | Market Size | CAGR | Source
+- manufacturers: Company | HQ / Region | Notable Product | Source
+- regulatory: Region | Regulator | Status / Schedule | Source
+- sourcing_pricing: Channel | Price Range | Lead Time | Source
+- risks_alternatives: Alternative / Risk | vs subject | Source
+
+If the prose genuinely contains NO tabularisable data, OMIT the table and output just the headline + blank line + verbatim original prose.
+
+# Output
+
+Strict JSON: `{"polished": "<headline>\n\n<table-or-empty>\n\n<verbatim original prose>"}`.
+
+Critical: do not invent URLs, claims, numbers, or company names. The verbatim original prose must appear word-for-word in your output.

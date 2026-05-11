@@ -117,65 +117,56 @@ async def _run_pipeline(query: str, out: Path | None, pdf: Path | None, do_polis
 
     md = render_markdown(assembled)
 
+    # Always write the no-polish (raw) outputs first
+    if out:
+        out.write_text(md)
+        click.echo(f"      → wrote {out}  (raw / no polish)")
+    else:
+        click.echo(md)
+    if pdf:
+        click.echo("[5/5] Rendering PDF (raw)...")
+        ok = report_to_pdf_file(assembled, pdf)
+        if ok:
+            click.echo(f"      → wrote {pdf}  (raw / no polish)")
+        else:
+            click.echo("      ✗ PDF rendering failed; markdown still available", err=True)
+
+    # If --polish, ALSO produce a polished variant alongside (does not replace the raw output)
     if do_polish:
-        click.echo("[polish] Restructuring sections (adding tables, tightening prose)...")
-        from mentis.polish import polish_report_markdown
-        md = await polish_report_markdown(
+        click.echo("[polish] Per-section polish (table + headline per section)...")
+        from mentis.polish import polish_report_per_section
+        polished_md = await polish_report_per_section(
             user_query=query,
             original_markdown=md,
             llm_config=llm_config,
             prompts_dir=prompts_dir,
         )
-        click.echo("       → polished")
-
-    if out:
-        out.write_text(md)
-        click.echo(f"      → wrote {out}")
-    else:
-        click.echo(md)
-
-    if pdf:
-        click.echo("[5/5] Rendering PDF...")
-        if do_polish:
-            # Render the polished markdown via WeasyPrint by converting through HTML
-            # using our existing template — easier: use markdown_it + WeasyPrint directly.
-            from mentis.pdf import _env, _md_to_html
+        if out:
+            polished_md_path = out.with_name(out.stem + "_polished" + out.suffix)
+            polished_md_path.write_text(polished_md)
+            click.echo(f"      → wrote {polished_md_path}  (polished)")
+        if pdf:
+            polished_pdf_path = pdf.with_name(pdf.stem + "_polished" + pdf.suffix)
+            from mentis.pdf import _md_to_html
             from weasyprint import HTML  # type: ignore
+            html_str = (
+                "<!doctype html><html><head><meta charset='utf-8'><style>"
+                "@page { size: A4; margin: 1.5cm; @bottom-center { content: 'Page ' counter(page) ' of ' counter(pages); font-size: 9pt; color: #888; } } "
+                "body { font-family: Helvetica, Arial, sans-serif; color: #1a1a1a; font-size: 11pt; line-height: 1.5; } "
+                "h1 { font-size: 18pt; border-bottom: 3px solid #1a1a1a; padding-bottom: 0.4em; } "
+                "h2 { font-size: 13pt; border-bottom: 1px solid #ccc; padding-bottom: 0.3em; margin-top: 1.5em; } "
+                "p { text-align: justify; } "
+                "a { color: #0a4d8c; text-decoration: none; } "
+                "table { border-collapse: collapse; width: 100%; margin: 0.8em 0; font-size: 10pt; } "
+                "th, td { border: 1px solid #ccc; padding: 6px 8px; text-align: left; vertical-align: top; } "
+                "th { background: #f4f4f0; }"
+                "</style></head><body>" + _md_to_html(polished_md) + "</body></html>"
+            )
             try:
-                # Strip the original header so the template can render its own
-                template = _env().get_template("report.html.j2")
-                # Polished md retains the full report; just dump it as a single HTML body
-                body_html = _md_to_html(md)
-                html_str = (
-                    "<!doctype html><html><head><meta charset='utf-8'>"
-                    "<style>"
-                    "@page { size: A4; margin: 1.5cm; @bottom-center { content: 'Page ' counter(page) ' of ' counter(pages); font-size: 9pt; color: #888; } } "
-                    "body { font-family: Helvetica, Arial, sans-serif; color: #1a1a1a; font-size: 11pt; line-height: 1.5; } "
-                    "h1 { font-size: 18pt; border-bottom: 3px solid #1a1a1a; padding-bottom: 0.4em; } "
-                    "h2 { font-size: 13pt; border-bottom: 1px solid #ccc; padding-bottom: 0.3em; margin-top: 1.5em; } "
-                    "p { text-align: justify; } "
-                    "a { color: #0a4d8c; text-decoration: none; } "
-                    "table { border-collapse: collapse; width: 100%; margin: 0.8em 0; font-size: 10pt; } "
-                    "th, td { border: 1px solid #ccc; padding: 6px 8px; text-align: left; vertical-align: top; } "
-                    "th { background: #f4f4f0; }"
-                    "</style></head><body>"
-                    f"{body_html}"
-                    "</body></html>"
-                )
-                pdf_bytes = HTML(string=html_str, base_url=".").write_pdf()
-                if pdf_bytes:
-                    Path(pdf).write_bytes(pdf_bytes)
-                    click.echo(f"      → wrote {pdf}")
-                else:
-                    click.echo("      ✗ PDF render returned empty", err=True)
+                Path(polished_pdf_path).write_bytes(HTML(string=html_str, base_url=".").write_pdf())
+                click.echo(f"      → wrote {polished_pdf_path}  (polished)")
             except Exception as e:
                 click.echo(f"      ✗ Polished PDF render failed: {e!r}", err=True)
-        else:
-            ok = report_to_pdf_file(assembled, pdf)
-            if ok:
-                click.echo(f"      → wrote {pdf}")
-            else:
-                click.echo("      ✗ PDF rendering failed; markdown still available", err=True)
 
 
 @cli.group()
