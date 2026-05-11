@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<PubmedArticleSet>
+  <PubmedArticle>
+    <MedlineCitation>
+      <PMID>12345678</PMID>
+      <Article>
+        <ArticleTitle>Ranitidine pharmacokinetics in adults</ArticleTitle>
+        <Abstract>
+          <AbstractText>Ranitidine is an H2 receptor antagonist. Peak plasma concentrations occur 1-3 hours post-administration.</AbstractText>
+        </Abstract>
+      </Article>
+    </MedlineCitation>
+  </PubmedArticle>
+  <PubmedArticle>
+    <MedlineCitation>
+      <PMID>23456789</PMID>
+      <Article>
+        <ArticleTitle>NDMA contamination in ranitidine</ArticleTitle>
+        <Abstract>
+          <AbstractText>NDMA levels exceed acceptable daily intake in ranitidine formulations stored at room temperature.</AbstractText>
+        </Abstract>
+      </Article>
+    </MedlineCitation>
+  </PubmedArticle>
+</PubmedArticleSet>
