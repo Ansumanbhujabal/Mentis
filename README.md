@@ -11,7 +11,7 @@ pinned: false
 
 # Mentis 🔍
 
-Procurement intelligence reports for medical substances. Type a substance, get a McKinsey-shape, citation-grounded brief in under 90 seconds — covering product profile, clinical use, market & demand, manufacturers, regulatory, sourcing & pricing, and risks & alternatives.
+Procurement intelligence reports for medical substances. Type a substance, get a structured, citation-grounded brief in minutes — covering product profile, clinical use, market & demand, manufacturers, regulatory, sourcing & pricing, and risks & alternatives.
 
 > POC in active development. See `docs/superpowers/specs/2026-05-11-mentis-poc-design.md` for the full design.
 
