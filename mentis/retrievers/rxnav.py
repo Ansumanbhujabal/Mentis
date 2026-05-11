@@ -1,6 +1,7 @@
 """RxNav retriever — drug normalization, synonyms, RxCUI codes."""
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import datetime
 
@@ -19,15 +20,37 @@ class RxNavRetriever:
     source_kind = "scientific"
 
     async def normalize(self, query: str) -> dict:
-        """Return {'normalized_term': str|None, 'synonyms': list[str], 'rxcui': str|None}."""
-        async with httpx.AsyncClient(timeout=15.0) as client:
+        """Return {'normalized_term': str|None, 'synonyms': list[str], 'rxcui': str|None}.
+
+        RxNav can be intermittently slow. Retry once with a longer timeout on
+        timeout errors before giving up. Empty result is treated as "no match"
+        and reported up so the planner can carry on without a normalized term.
+        """
+        data = None
+        last_err: Exception | None = None
+        for attempt, timeout in enumerate((20.0, 40.0), start=1):
             try:
-                r = await client.get(DRUGS_URL, params={"name": query})
-                r.raise_for_status()
-                data = r.json()
+                async with httpx.AsyncClient(timeout=timeout) as client:
+                    r = await client.get(DRUGS_URL, params={"name": query})
+                    r.raise_for_status()
+                    data = r.json()
+                    break
+            except (httpx.TimeoutException, httpx.ConnectError) as e:
+                last_err = e
+                logger.warning(
+                    f"rxnav timeout for {query!r} (attempt {attempt}, timeout={timeout}s); "
+                    f"{'retrying with longer timeout' if attempt == 1 else 'giving up'}"
+                )
+                if attempt == 1:
+                    await asyncio.sleep(1.5)
+                continue
             except Exception as e:
+                last_err = e
                 logger.warning(f"rxnav lookup failed for {query!r}: {e!r}")
-                return {"normalized_term": None, "synonyms": [], "rxcui": None}
+                break
+
+        if data is None:
+            return {"normalized_term": None, "synonyms": [], "rxcui": None}
 
         groups = data.get("drugGroup", {}).get("conceptGroup", []) or []
         synonyms: list[str] = []
