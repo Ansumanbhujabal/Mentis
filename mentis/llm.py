@@ -9,8 +9,10 @@ Escalation order on safety block:
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
+import re
 from dataclasses import dataclass, field
 from typing import TypeVar
 
@@ -67,6 +69,14 @@ def _is_safety_error(exc: Exception) -> bool:
     )
 
 
+def _is_rate_limit_error(exc: Exception) -> bool:
+    msg = str(exc).lower()
+    return any(
+        kw in msg
+        for kw in ("rate limit", "resource_exhausted", "quota", "429", "rate_limit_exceeded")
+    )
+
+
 class LLMClient:
     def __init__(self, config: LLMConfig) -> None:
         self.config = config
@@ -93,14 +103,33 @@ class LLMClient:
         }
         if safety_settings is not None and provider.startswith("gemini"):
             kwargs["safety_settings"] = safety_settings
-        try:
-            resp = await acompletion(**kwargs)
-        except Exception as e:
-            if _is_safety_error(e):
-                raise SafetyBlockedException(str(e)) from e
-            raise
-        content = resp.choices[0].message.content
-        return schema.model_validate_json(content)
+
+        max_rate_retries = 3
+        for attempt in range(max_rate_retries):
+            try:
+                resp = await acompletion(**kwargs)
+                content = resp.choices[0].message.content
+                return schema.model_validate_json(content)
+            except Exception as e:
+                if _is_safety_error(e):
+                    raise SafetyBlockedException(str(e)) from e
+                if _is_rate_limit_error(e) and attempt < max_rate_retries - 1:
+                    # Try to parse retry-delay from message; default to exponential backoff
+                    msg = str(e)
+                    delay_match = re.search(r'"retryDelay"\s*:\s*"(\d+)s"', msg)
+                    delay = (
+                        int(delay_match.group(1)) + 2
+                        if delay_match
+                        else 5 * (2 ** attempt)
+                    )
+                    logger.warning(
+                        f"rate-limited on {provider}, waiting {delay}s "
+                        f"(attempt {attempt + 1}/{max_rate_retries})"
+                    )
+                    await asyncio.sleep(delay)
+                    continue
+                raise
+        raise RuntimeError(f"rate-limited too many times on {provider}")
 
     async def complete_with_safety(
         self,

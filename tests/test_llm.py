@@ -112,3 +112,29 @@ async def test_trace_does_not_claim_reframe_when_no_template(config: LLMConfig) 
         f"trace must not falsely claim reframing when no template provided: {trace.actions}"
     )
     assert "provider_fallback" in trace.actions
+
+
+@pytest.mark.asyncio
+async def test_rate_limit_retry_succeeds(config: LLMConfig) -> None:
+    """First call rate-limited; second call succeeds. Retry path triggers."""
+    client = LLMClient(config)
+    call_count = {"n": 0}
+
+    async def mock_call(*args, **kwargs):
+        call_count["n"] += 1
+        if call_count["n"] == 1:
+            raise Exception("RESOURCE_EXHAUSTED: quota exceeded")
+        return _fake_response('{"items": ["y"]}')
+
+    async def no_sleep(delay):
+        # Skip real sleep in test
+        pass
+
+    with patch("mentis.llm.acompletion", new=AsyncMock(side_effect=mock_call)), patch(
+        "mentis.llm.asyncio.sleep", new=AsyncMock(side_effect=no_sleep)
+    ):
+        out, used, trace = await client.complete_with_safety(
+            system="sys", user="usr", schema=TinyOut, prompt_version="v1"
+        )
+    assert out == TinyOut(items=["y"])
+    assert call_count["n"] == 2  # retry happened

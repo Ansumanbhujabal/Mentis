@@ -6,6 +6,7 @@ raw-snippet rendering with fallback_to_raw_snippets=True.
 """
 from __future__ import annotations
 
+import asyncio
 import contextlib
 import logging
 import re
@@ -21,6 +22,7 @@ from mentis.schemas import SectionDraft, SectionName, Snippet
 logger = logging.getLogger(__name__)
 
 SYNTH_VERSION = "v1"
+_LLM_SEMAPHORE = asyncio.Semaphore(3)  # Throttle concurrent LLM calls to 3
 SYSTEM_PROMPT = (
     "You output strictly valid JSON. Cite only the URLs provided in the snippets list. "
     "Never invent URLs or claims."
@@ -107,8 +109,17 @@ async def synthesize_section(
     allowed_urls = {str(s.url) for s in snippets}
 
     async def _attempt():
-        if llm_complete is None:
-            return await _default_llm_complete(
+        async with _LLM_SEMAPHORE:
+            if llm_complete is None:
+                return await _default_llm_complete(
+                    llm_config=llm_config,
+                    system=SYSTEM_PROMPT,
+                    user=user_prompt,
+                    schema=_SynthLLMOut,
+                    prompt_version=prompt.version,
+                    reframe_template=reframe_template,
+                )
+            return await llm_complete(
                 llm_config=llm_config,
                 system=SYSTEM_PROMPT,
                 user=user_prompt,
@@ -116,14 +127,6 @@ async def synthesize_section(
                 prompt_version=prompt.version,
                 reframe_template=reframe_template,
             )
-        return await llm_complete(
-            llm_config=llm_config,
-            system=SYSTEM_PROMPT,
-            user=user_prompt,
-            schema=_SynthLLMOut,
-            prompt_version=prompt.version,
-            reframe_template=reframe_template,
-        )
 
     # Attempt 1
     safety_retries = 0
