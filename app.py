@@ -53,9 +53,49 @@ from mentis.synthesizer import synthesize_section
 load_dotenv()
 init_observability()
 
+# Precomputed reports — instant load for demo queries that match.
+# Falls through to live pipeline on cache miss.
+_PRECOMPUTED_DIR = Path(__file__).parent / "walkthrough" / "sample_reports"
+PRECOMPUTED = {
+    "0.9% saline": "saline_0.9pct",
+    "saline": "saline_0.9pct",
+    "tramadol": "tramadol",
+    "insulin glargine": "insulin_glargine",
+    "insulin": "insulin_glargine",
+}
+
+
+def _precomputed_for(query: str) -> tuple[str, Path] | None:
+    """Return (markdown_text, pdf_path) if query matches a precomputed sample."""
+    key = query.strip().lower()
+    slug = PRECOMPUTED.get(key)
+    if slug is None:
+        return None
+    md_path = _PRECOMPUTED_DIR / f"{slug}.md"
+    pdf_path = _PRECOMPUTED_DIR / f"{slug}.pdf"
+    if not md_path.exists():
+        return None
+    md_text = md_path.read_text()
+    return md_text, pdf_path if pdf_path.exists() else None
+
 
 async def _run(query: str):
     t0 = time.perf_counter()
+
+    # Precomputed-cache fast path: if the query matches a sample, return its
+    # pre-rendered markdown + PDF instantly. Bypasses all retrieval + LLM calls.
+    hit = _precomputed_for(query)
+    if hit is not None:
+        md_text, pdf_path = hit
+        footer = (
+            f"⚡ Precomputed sample · "
+            f"📄 prebuilt PDF · "
+            f"💰 $0.00 (cached) · "
+            f"🛡 0 safety retries"
+        )
+        yield footer, md_text, str(pdf_path) if pdf_path else None
+        return
+
     cache = Cache.from_env()
     llm_config = LLMConfig.from_env()
     prompts_dir = Path("prompts")
@@ -141,13 +181,13 @@ def build_app() -> gr.Blocks:
         with gr.Row():
             query_input = gr.Textbox(
                 label="Substance",
-                placeholder='e.g., "ranitidine", "0.9% saline", "tramadol"',
+                placeholder='e.g., "0.9% saline", "tramadol", "insulin glargine"',
                 scale=4,
             )
             go_btn = gr.Button("▶ Generate", variant="primary", scale=1)
 
         gr.Examples(
-            examples=["ranitidine", "0.9% saline", "tramadol", "insulin glargine"],
+            examples=["0.9% saline", "tramadol", "insulin glargine"],
             inputs=query_input,
         )
 
