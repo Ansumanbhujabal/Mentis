@@ -22,7 +22,7 @@ from mentis.schemas import SectionDraft, SectionName, Snippet
 logger = logging.getLogger(__name__)
 
 SYNTH_VERSION = "v1"
-_LLM_SEMAPHORE = asyncio.Semaphore(3)  # Throttle concurrent LLM calls to 3
+_LLM_SEMAPHORE = asyncio.Semaphore(1)  # Sequential — Gemini free tier limits
 SYSTEM_PROMPT = (
     "You output strictly valid JSON. Cite only the URLs provided in the snippets list. "
     "Never invent URLs or claims."

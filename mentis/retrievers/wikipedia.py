@@ -39,7 +39,7 @@ class WikipediaRetriever:
 
         return [
             Snippet(
-                text=extract[:800],
+                text=extract[:400],
                 url=page_url,
                 source_name="Wikipedia",
                 source_kind="background",

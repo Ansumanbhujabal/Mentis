@@ -53,7 +53,9 @@ class LLMConfig:
     def from_env(cls) -> LLMConfig:
         primary = os.environ.get("MENTIS_PRIMARY_MODEL", "gemini/gemini-2.0-flash")
         csv = os.environ.get("MENTIS_PROVIDERS", "gemini,groq").split(",")
+        azure_model = os.environ.get("AZURE_OPENAI_MODEL", "gpt-4o")
         m = {
+            "azure": f"azure/{azure_model}",
             "gemini": "gemini/gemini-2.0-flash",
             "groq": "groq/llama-3.3-70b-versatile",
         }
@@ -67,6 +69,15 @@ def _is_safety_error(exc: Exception) -> bool:
         kw in msg
         for kw in ("safety", "blocked", "content_filter", "harm", "policy violation")
     )
+
+
+def _strip_md_fences(content: str) -> str:
+    """Strip ```json ... ``` markdown code fences some providers wrap JSON output in."""
+    s = content.strip()
+    if s.startswith("```"):
+        s = re.sub(r"^```(?:json|JSON)?\s*\n?", "", s)
+        s = re.sub(r"\n?```\s*$", "", s)
+    return s.strip()
 
 
 def _is_rate_limit_error(exc: Exception) -> bool:
@@ -103,13 +114,21 @@ class LLMClient:
         }
         if safety_settings is not None and provider.startswith("gemini"):
             kwargs["safety_settings"] = safety_settings
+        if provider.startswith("azure/"):
+            # LiteLLM expects api_key / api_base / api_version explicitly for Azure
+            if api_key := os.environ.get("AZURE_OPENAI_API_KEY"):
+                kwargs["api_key"] = api_key
+            if api_base := os.environ.get("AZURE_OPENAI_ENDPOINT"):
+                kwargs["api_base"] = api_base
+            if api_version := os.environ.get("AZURE_OPENAI_API_VERSION"):
+                kwargs["api_version"] = api_version
 
         max_rate_retries = 3
         for attempt in range(max_rate_retries):
             try:
                 resp = await acompletion(**kwargs)
                 content = resp.choices[0].message.content
-                return schema.model_validate_json(content)
+                return schema.model_validate_json(_strip_md_fences(content))
             except Exception as e:
                 if _is_safety_error(e):
                     raise SafetyBlockedException(str(e)) from e

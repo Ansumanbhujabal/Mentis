@@ -38,7 +38,7 @@ class TavilyRetriever:
             try:
                 out.append(
                     Snippet(
-                        text=r.get("content", "")[:800],
+                        text=r.get("content", "")[:400],
                         url=r["url"],
                         source_name="Tavily",
                         source_kind="market",

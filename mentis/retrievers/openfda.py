@@ -48,7 +48,7 @@ class OpenFDARetriever:
                 f"Indications: {indications}",
                 f"Warnings: {warnings}",
             ]
-            text = " ".join(text_parts)[:800]
+            text = " ".join(text_parts)[:400]
             label_id = result.get("id", "")
             try:
                 out.append(

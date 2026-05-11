@@ -52,7 +52,7 @@ async def retrieve_for_plan(
     *,
     retrievers: dict[str, Any],
     cache: Cache,
-    n_per_query: int = 4,
+    n_per_query: int = 3,
 ) -> dict[str, list[Snippet]]:
     """For each SectionPlan, fire all (source, query) combos in parallel.
 

@@ -63,7 +63,7 @@ class PubmedRetriever:
                     continue
                 pmid = pmid_el.text or ""
                 title = title_el.text if title_el is not None else None
-                text = (abstract_el.text or "")[:800]
+                text = (abstract_el.text or "")[:400]
                 if not text:
                     continue
                 out.append(
