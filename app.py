@@ -193,7 +193,7 @@ def build_app() -> gr.Blocks:
 
         status = gr.Markdown(value="*Ready.*")
         report_md = gr.Markdown(value="")
-        pdf_download = gr.File(label="⬇ Download PDF", interactive=False)
+        pdf_download = gr.DownloadButton(label="⬇ Download PDF", variant="secondary")
 
         go_btn.click(
             run_pipeline,
