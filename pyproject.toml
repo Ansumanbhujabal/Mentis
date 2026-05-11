@@ -19,6 +19,7 @@ dependencies = [
     "gradio>=4.40",
     "langfuse>=2.40,<3",
     "python-dotenv>=1.0",
+    "linkify-it-py>=2.0",
 ]
 
 [project.scripts]
