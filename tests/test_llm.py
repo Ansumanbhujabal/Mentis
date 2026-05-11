@@ -83,3 +83,32 @@ async def test_all_paths_blocked_raises(config: LLMConfig) -> None:
         await client.complete_with_safety(
             system="sys", user="usr", schema=TinyOut, prompt_version="v1"
         )
+
+
+@pytest.mark.asyncio
+async def test_trace_does_not_claim_reframe_when_no_template(config: LLMConfig) -> None:
+    """Without reframe_template, trace.actions must not contain 'reframing_prompt'."""
+    client = LLMClient(config)
+
+    block_count = [0]
+
+    async def mock_call(*args, **kwargs):
+        block_count[0] += 1
+        # block step 1 and 2; step 4 (fallback) succeeds
+        if block_count[0] <= 2:
+            _safety_blocked()
+        return _fake_response('{"items": ["x"]}')
+
+    with patch("mentis.llm.acompletion", new=AsyncMock(side_effect=mock_call)):
+        out, used, trace = await client.complete_with_safety(
+            system="sys",
+            user="usr",
+            schema=TinyOut,
+            prompt_version="v1",
+            # reframe_template intentionally omitted
+        )
+    assert used == "groq/llama-3.3-70b-versatile"
+    assert "reframing_prompt" not in trace.actions, (
+        f"trace must not falsely claim reframing when no template provided: {trace.actions}"
+    )
+    assert "provider_fallback" in trace.actions

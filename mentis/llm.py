@@ -146,9 +146,13 @@ class LLMClient:
             return out, primary, trace
         except SafetyBlockedException:
             trace.retry_count += 1
-            trace.actions.append("reframing_prompt")
+            # Action describes the NEXT step we'll attempt
+            if reframe_template:
+                trace.actions.append("reframing_prompt")
+            else:
+                trace.actions.append("provider_fallback")
 
-        # 3. Reframe user prompt + relaxed safety
+        # 3. Reframe user prompt + relaxed safety (only if template provided)
         if reframe_template:
             reframed = reframe_template.replace("{{ original }}", user)
             try:
@@ -164,9 +168,6 @@ class LLMClient:
             except SafetyBlockedException:
                 trace.retry_count += 1
                 trace.actions.append("provider_fallback")
-        else:
-            trace.retry_count += 1
-            trace.actions.append("provider_fallback")
 
         # 4. Provider fallback
         for fb in self.config.providers[1:]:
