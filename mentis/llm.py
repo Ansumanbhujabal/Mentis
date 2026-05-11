@@ -47,7 +47,7 @@ class LLMConfig:
     providers: list[str] = field(
         default_factory=lambda: ["gemini/gemini-2.0-flash", "groq/llama-3.3-70b-versatile"]
     )
-    timeout_s: float = 60.0
+    timeout_s: float = 180.0
 
     @classmethod
     def from_env(cls) -> LLMConfig:
