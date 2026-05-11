@@ -1,0 +1,18 @@
+You are writing the Executive Summary of a procurement intelligence report on {{ user_query }} ({{ normalized_term }}).
+
+Read the 7 section drafts below. Produce a 100-150 word summary covering:
+1. What the substance is (one phrase)
+2. Primary clinical/commercial use (one sentence)
+3. Market shape signal (one phrase: size, growth, or concentration)
+4. Key regulatory or compliance constraint (one phrase)
+5. Top 2-3 sourcing or supplier-side facts the reader needs
+
+Tone: tight, factual, no marketing fluff. Cite up to 3 most-load-bearing claims as inline [text](url) hyperlinks pulled from the section drafts.
+
+Section drafts:
+{% for s in sections %}
+### {{ s.section_name }}
+{{ s.prose }}
+{% endfor %}
+
+Output strict JSON: {"executive_summary": "<markdown text 100-150 words>"}.

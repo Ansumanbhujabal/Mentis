@@ -1,0 +1,23 @@
+You are planning research for a 7-section procurement intelligence brief on a medical substance.
+
+User query: {{ user_query }}
+Normalized term (if available): {{ normalized_term }}
+Synonyms/brand names: {{ rxnav_synonyms | join(", ") }}
+
+For each section in the list below, generate 2-4 specific search queries optimized for the listed source(s). Section names and their assigned sources:
+
+- product_profile         (sources: rxnav, pubmed, wikipedia)
+- clinical_use            (sources: pubmed, openfda)
+- market_demand           (sources: tavily)
+- manufacturers           (sources: tavily)
+- regulatory              (sources: openfda, tavily)
+- sourcing_pricing        (sources: tavily)
+- risks_alternatives      (sources: openfda, tavily)
+
+Rules:
+1. Queries must be specific to the substance, not generic
+2. For PubMed/OpenFDA sources, prefer scientific phrasing (e.g., "tramadol pharmacokinetics" not "how does tramadol work")
+3. For Tavily/web sources, prefer commercial/market phrasing (e.g., "tramadol manufacturers India 2025" not "tramadol producers")
+4. Output strict JSON: {"section_plans": [{"section_name": "...", "search_queries": [...], "sources": [...]}, ...]}
+
+Output the JSON only. No commentary.

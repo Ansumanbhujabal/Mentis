@@ -1,0 +1,17 @@
+You are writing the {{ section_name }} section of a procurement intelligence report on {{ user_query }} ({{ normalized_term }}).
+
+Use ONLY the snippets below as your source material. Write 200-300 words of prose. Embed inline markdown hyperlinks like [claim text](url) on key facts. EVERY URL you cite MUST come exactly from the snippets list — do not invent URLs or claims not supported by snippets.
+
+Style:
+- Authoritative but neutral (think McKinsey/Bain consulting brief, not blog post)
+- Quantify where data permits (market sizes, growth rates, doses, prices)
+- Surface contradictions honestly when sources disagree
+
+Snippets:
+{% for s in snippets %}
+[{{ loop.index }}] {{ s.source_name }} | {{ s.url }} | retrieved {{ s.retrieved_at }}
+{{ s.text }}
+{% endfor %}
+
+Output strict JSON: {"prose": "<markdown text>"}.
+The prose field must be valid Markdown with at least 2 inline citations as [text](url).
