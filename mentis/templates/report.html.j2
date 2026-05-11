@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Mentis — {{ report.user_query }}</title>
+  <style>
+    @page { size: A4; margin: 1.5cm; @bottom-center { content: "Page " counter(page) " of " counter(pages); font-size: 9pt; color: #888; } }
+    body { font-family: "Helvetica", "Arial", sans-serif; color: #1a1a1a; font-size: 11pt; line-height: 1.45; }
+    .header { border-bottom: 3px solid #1a1a1a; padding-bottom: 0.6em; margin-bottom: 1.2em; }
+    .header h1 { margin: 0; font-size: 18pt; letter-spacing: 0.05em; }
+    .meta { color: #555; font-size: 9pt; margin-top: 0.5em; line-height: 1.6; }
+    h2 { color: #1a1a1a; border-bottom: 1px solid #ccc; padding-bottom: 0.3em; margin-top: 1.5em; font-size: 13pt; }
+    .es { background: #f4f4f0; padding: 0.8em 1em; border-left: 4px solid #1a1a1a; margin: 1em 0; }
+    p { text-align: justify; }
+    a { color: #0a4d8c; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .references { font-size: 9.5pt; }
+    .references li { margin-bottom: 0.5em; }
+    .fallback-note { color: #a04400; font-style: italic; font-size: 9.5pt; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>MENTIS · Procurement Intelligence Brief</h1>
+    <div class="meta">
+      <strong>Substance:</strong> {{ report.user_query }}
+      {% if report.normalized_term %} · <strong>Normalized:</strong> {{ report.normalized_term }}{% endif %}
+      <br>
+      <strong>Generated:</strong> {{ report.metadata.generated_at.strftime("%Y-%m-%d %H:%M") }} ·
+      <strong>Model:</strong> {{ report.metadata.llm_provider }}
+      <br>
+      <strong>Sources retrieved:</strong> {{ report.metadata.total_snippets_retrieved }} ·
+      <strong>Cost:</strong> ${{ "%.4f" | format(report.metadata.cost_usd) }} ·
+      <strong>Latency:</strong> {{ report.metadata.total_latency_ms }} ms ·
+      <strong>Safety retries:</strong> {{ report.metadata.total_safety_retries }}
+    </div>
+  </div>
+
+  <h2>Executive Summary</h2>
+  <div class="es">{{ executive_summary_html | safe }}</div>
+
+  {% for s in sections_html %}
+  <h2>{{ s.title }}</h2>
+  {{ s.html | safe }}
+  {% if s.fallback %}<p class="fallback-note">This section could not be synthesized due to provider safety filters; raw sources shown above.</p>{% endif %}
+  {% endfor %}
+
+  <h2>References</h2>
+  <ol class="references">
+  {% for r in report.references %}
+    <li><strong>{{ r.source_name }}</strong> — <a href="{{ r.url }}">{{ r.title }}</a> — retrieved {{ r.retrieved_at.strftime("%Y-%m-%d") }} — used in: {{ r.used_in_sections | join(", ") }}</li>
+  {% endfor %}
+  </ol>
+</body>
+</html>
