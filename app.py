@@ -110,7 +110,7 @@ def build_app() -> gr.Blocks:
     with gr.Blocks(title="Mentis — Procurement Intelligence", theme=gr.themes.Soft()) as app:
         gr.Markdown(
             "# 🔍 Mentis\n*Procurement intelligence for medical substances. "
-            "Type a substance, get a McKinsey-shape brief in under 90 seconds.*"
+            "Type a substance, get a structured, citation-grounded brief.*"
         )
         with gr.Row():
             query_input = gr.Textbox(
