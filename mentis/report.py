@@ -8,7 +8,7 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
-from mentis.llm import LLMClient, LLMConfig
+from mentis.llm import LLMClient, LLMConfig, consume_pipeline_cost
 from mentis.prompts import PromptRegistry
 from mentis.schemas import Reference, Report, ReportMetadata, SectionDraft, SectionNames
 
@@ -101,6 +101,10 @@ async def assemble_report(
     safety_retries_total = sum(d.safety_retries for d in ordered)
     snippets_total = sum(len(d.snippets_used) for d in ordered)
 
+    # Drain the per-pipeline cost accumulator (populated by every _call in llm.py).
+    # Called AFTER the ES LLM call above so its cost is included.
+    cost_usd = consume_pipeline_cost()
+
     metadata = ReportMetadata(
         mentis_version=MENTIS_VERSION,
         llm_provider=llm_config.providers[0],
@@ -112,7 +116,7 @@ async def assemble_report(
         total_latency_ms=total_latency_ms,
         total_snippets_retrieved=snippets_total,
         total_safety_retries=safety_retries_total,
-        cost_usd=0.0,
+        cost_usd=cost_usd,
         generated_at=datetime.now(),
     )
 

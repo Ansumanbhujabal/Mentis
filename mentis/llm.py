@@ -173,8 +173,15 @@ class LLMClient:
                 except Exception:
                     call_cost = 0.0
                 add_pipeline_cost(call_cost)
-                content = resp.choices[0].message.content
-                return schema.model_validate_json(_strip_md_fences(content))
+                content = _strip_md_fences(resp.choices[0].message.content)
+                # Try strict JSON first; fall back to lenient parsing (LLMs sometimes
+                # emit literal newlines/tabs inside string values which violate strict JSON)
+                try:
+                    return schema.model_validate_json(content)
+                except Exception:
+                    import json as _json
+                    data = _json.loads(content, strict=False)
+                    return schema.model_validate(data)
             except Exception as e:
                 if _is_safety_error(e):
                     raise SafetyBlockedException(str(e)) from e
