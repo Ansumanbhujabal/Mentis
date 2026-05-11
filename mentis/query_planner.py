@@ -6,7 +6,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
-from mentis.llm import LLMClient, LLMConfig
+from mentis.llm import LLMClient, LLMConfig, reset_pipeline_cost
 from mentis.prompts import PromptRegistry
 from mentis.schemas import QueryPlan, SectionPlan
 
@@ -43,6 +43,8 @@ async def plan_query(
     rxnav_normalize: callable that normalizes drug name. Defaults to real RxNav.
     llm_complete: injectable for tests. Defaults to real LLM call.
     """
+    # Fresh run — clear any leftover cost from a previous pipeline.
+    reset_pipeline_cost()
     # 1. Normalize via RxNav
     if rxnav_normalize is None:
         from mentis.retrievers.rxnav import RxNavRetriever

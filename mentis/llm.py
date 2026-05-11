@@ -10,7 +10,6 @@ Escalation order on safety block:
 from __future__ import annotations
 
 import asyncio
-import contextvars
 import logging
 import os
 import re
@@ -23,26 +22,44 @@ from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 
-# Per-pipeline-run cost accumulator. ContextVar so asyncio.gather() tasks
-# inherit the same context and all concurrent LLM calls contribute.
-_PIPELINE_COST_USD: contextvars.ContextVar[float] = contextvars.ContextVar(
-    "_PIPELINE_COST_USD", default=0.0
-)
+# Per-pipeline-run cost accumulator. Module-level float guarded by a lock so
+# asyncio.gather() tasks (which run in copied contexts) all write to the same
+# value. ContextVar doesn't work here because each gathered task gets its own
+# copy of the context and changes don't propagate back to the parent.
+#
+# Limitation: this is process-global. Two concurrent pipelines (e.g., two
+# users hitting Gradio simultaneously) would have their costs commingled.
+# Acceptable for POC; a real prod build would tag costs by request_id.
+import threading
+
+_PIPELINE_COST_USD: float = 0.0
+_COST_LOCK = threading.Lock()
 
 
 def add_pipeline_cost(usd: float) -> None:
-    """Add to the per-context cost accumulator."""
+    """Add to the process-wide cost accumulator."""
+    global _PIPELINE_COST_USD
     try:
-        _PIPELINE_COST_USD.set(_PIPELINE_COST_USD.get() + float(usd))
+        with _COST_LOCK:
+            _PIPELINE_COST_USD += float(usd)
     except Exception:
         pass
 
 
 def consume_pipeline_cost() -> float:
     """Return the current accumulator value and reset it to 0."""
-    total = _PIPELINE_COST_USD.get()
-    _PIPELINE_COST_USD.set(0.0)
-    return total
+    global _PIPELINE_COST_USD
+    with _COST_LOCK:
+        total = _PIPELINE_COST_USD
+        _PIPELINE_COST_USD = 0.0
+        return total
+
+
+def reset_pipeline_cost() -> None:
+    """Reset the accumulator to zero — call at the start of each pipeline run."""
+    global _PIPELINE_COST_USD
+    with _COST_LOCK:
+        _PIPELINE_COST_USD = 0.0
 
 T = TypeVar("T", bound=BaseModel)
 
