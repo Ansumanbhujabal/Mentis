@@ -7,8 +7,34 @@ import tempfile
 import time
 from pathlib import Path
 
-import gradio as gr
-from dotenv import load_dotenv
+# Monkey-patch gradio_client schema bug BEFORE importing gradio.
+# Gradio 4.40 + Pydantic v2 produces schema fragments that are bool (True/False)
+# meaning "anything" / "nothing". gradio_client.utils.get_type does `"const" in schema`
+# which raises TypeError when schema is a bool. We wrap the helpers to fall through
+# gracefully on non-dict inputs.
+import gradio_client.utils as _gc_utils  # noqa: E402
+
+_orig_get_type = _gc_utils.get_type
+_orig_json_schema = _gc_utils._json_schema_to_python_type
+
+
+def _safe_get_type(schema):
+    if not isinstance(schema, dict):
+        return "Any"
+    return _orig_get_type(schema)
+
+
+def _safe_json_schema(schema, defs):
+    if not isinstance(schema, dict):
+        return "Any"
+    return _orig_json_schema(schema, defs)
+
+
+_gc_utils.get_type = _safe_get_type
+_gc_utils._json_schema_to_python_type = _safe_json_schema
+
+import gradio as gr  # noqa: E402
+from dotenv import load_dotenv  # noqa: E402
 
 from mentis.cache import Cache
 from mentis.llm import LLMConfig
