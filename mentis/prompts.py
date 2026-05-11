@@ -51,8 +51,11 @@ class PromptRegistry:
             from langfuse import Langfuse
 
             lf = Langfuse()
-            lf_version = int(version[1:]) if version else None
-            p = lf.get_prompt(name=name, version=lf_version, label="production")
+            # Langfuse rejects passing both version + label. Prefer label when version unspecified.
+            if version:
+                p = lf.get_prompt(name=name, version=int(version[1:]))
+            else:
+                p = lf.get_prompt(name=name, label="production")
             return Prompt(
                 name=name,
                 version=f"v{p.version}",

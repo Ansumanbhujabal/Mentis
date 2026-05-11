@@ -40,12 +40,21 @@ def cli(verbose: bool) -> None:
 @click.argument("query")
 @click.option("--out", type=click.Path(path_type=Path), help="Markdown output path")
 @click.option("--pdf", type=click.Path(path_type=Path), help="PDF output path")
-def report(query: str, out: Path | None, pdf: Path | None) -> None:
-    """Generate a procurement intelligence report for QUERY."""
-    asyncio.run(_run_pipeline(query, out, pdf))
+@click.option("--polish/--no-polish", default=False, help="Run the post-processing polish layer (adds tables, tighter structure)")
+def report(query: str, out: Path | None, pdf: Path | None, polish: bool) -> None:
+    """Generate a procurement intelligence report for QUERY.
+
+    Default output filenames: {Substance}_mentis_report.md and .pdf in the current directory.
+    """
+    from mentis.polish import slug_filename
+    if out is None:
+        out = Path(slug_filename(query, "md"))
+    if pdf is None:
+        pdf = Path(slug_filename(query, "pdf"))
+    asyncio.run(_run_pipeline(query, out, pdf, polish))
 
 
-async def _run_pipeline(query: str, out: Path | None, pdf: Path | None) -> None:
+async def _run_pipeline(query: str, out: Path | None, pdf: Path | None, do_polish: bool = False) -> None:
     t0 = time.perf_counter()
     cache = Cache.from_env()
     llm_config = LLMConfig.from_env()
@@ -107,6 +116,18 @@ async def _run_pipeline(query: str, out: Path | None, pdf: Path | None) -> None:
     )
 
     md = render_markdown(assembled)
+
+    if do_polish:
+        click.echo("[polish] Restructuring sections (adding tables, tightening prose)...")
+        from mentis.polish import polish_report_markdown
+        md = await polish_report_markdown(
+            user_query=query,
+            original_markdown=md,
+            llm_config=llm_config,
+            prompts_dir=prompts_dir,
+        )
+        click.echo("       → polished")
+
     if out:
         out.write_text(md)
         click.echo(f"      → wrote {out}")
@@ -115,11 +136,46 @@ async def _run_pipeline(query: str, out: Path | None, pdf: Path | None) -> None:
 
     if pdf:
         click.echo("[5/5] Rendering PDF...")
-        ok = report_to_pdf_file(assembled, pdf)
-        if ok:
-            click.echo(f"      → wrote {pdf}")
+        if do_polish:
+            # Render the polished markdown via WeasyPrint by converting through HTML
+            # using our existing template — easier: use markdown_it + WeasyPrint directly.
+            from mentis.pdf import _env, _md_to_html
+            from weasyprint import HTML  # type: ignore
+            try:
+                # Strip the original header so the template can render its own
+                template = _env().get_template("report.html.j2")
+                # Polished md retains the full report; just dump it as a single HTML body
+                body_html = _md_to_html(md)
+                html_str = (
+                    "<!doctype html><html><head><meta charset='utf-8'>"
+                    "<style>"
+                    "@page { size: A4; margin: 1.5cm; @bottom-center { content: 'Page ' counter(page) ' of ' counter(pages); font-size: 9pt; color: #888; } } "
+                    "body { font-family: Helvetica, Arial, sans-serif; color: #1a1a1a; font-size: 11pt; line-height: 1.5; } "
+                    "h1 { font-size: 18pt; border-bottom: 3px solid #1a1a1a; padding-bottom: 0.4em; } "
+                    "h2 { font-size: 13pt; border-bottom: 1px solid #ccc; padding-bottom: 0.3em; margin-top: 1.5em; } "
+                    "p { text-align: justify; } "
+                    "a { color: #0a4d8c; text-decoration: none; } "
+                    "table { border-collapse: collapse; width: 100%; margin: 0.8em 0; font-size: 10pt; } "
+                    "th, td { border: 1px solid #ccc; padding: 6px 8px; text-align: left; vertical-align: top; } "
+                    "th { background: #f4f4f0; }"
+                    "</style></head><body>"
+                    f"{body_html}"
+                    "</body></html>"
+                )
+                pdf_bytes = HTML(string=html_str, base_url=".").write_pdf()
+                if pdf_bytes:
+                    Path(pdf).write_bytes(pdf_bytes)
+                    click.echo(f"      → wrote {pdf}")
+                else:
+                    click.echo("      ✗ PDF render returned empty", err=True)
+            except Exception as e:
+                click.echo(f"      ✗ Polished PDF render failed: {e!r}", err=True)
         else:
-            click.echo("      ✗ PDF rendering failed; markdown still available", err=True)
+            ok = report_to_pdf_file(assembled, pdf)
+            if ok:
+                click.echo(f"      → wrote {pdf}")
+            else:
+                click.echo("      ✗ PDF rendering failed; markdown still available", err=True)
 
 
 @cli.group()

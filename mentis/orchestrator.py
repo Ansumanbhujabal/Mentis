@@ -35,7 +35,9 @@ async def _retrieve_one(
 ) -> list[Snippet]:
     key = Cache.compute_hash(retriever.name, query, ORCH_VERSION)
     hit = cache.get("retrieve", key, _SnippetBundle)
-    if hit is not None:
+    if hit is not None and hit.snippets:
+        # Only trust a cache hit if it has actual snippets. Empty results may have
+        # come from a transient API failure — let the retriever retry next time.
         return hit.snippets
     async with sem:
         try:
@@ -43,7 +45,9 @@ async def _retrieve_one(
         except Exception as e:
             logger.warning(f"retriever {retriever.name} failed for {query!r}: {e!r}")
             return []
-    cache.set("retrieve", key, _SnippetBundle(snippets=snips))
+    # Only cache non-empty results
+    if snips:
+        cache.set("retrieve", key, _SnippetBundle(snippets=snips))
     return snips
 
 
@@ -59,6 +63,9 @@ async def retrieve_for_plan(
     Returns {section_name: deduped list of snippets}.
     """
     sem = asyncio.Semaphore(CONCURRENCY)
+
+    user_query = plan.user_query
+    normalized = plan.normalized_term
 
     async def _per_section(sp) -> tuple[str, list[Snippet]]:
         coros = []
@@ -78,6 +85,25 @@ async def retrieve_for_plan(
                 if key not in seen:
                     seen.add(key)
                     merged.append(s)
+
+        # Fallback: if the planner's queries returned nothing for this section,
+        # retry each retriever with the bare user_query (and normalized term if available).
+        # Common case: planner generates "minoxidil pharmacological profile" which Wikipedia /
+        # RxNav can't match, but "minoxidil" alone returns the canonical article + entry.
+        if not merged:
+            fallback_queries = [q for q in (user_query, normalized) if q]
+            for src in sources_to_use:
+                r = retrievers.get(src)
+                if r is None:
+                    continue
+                for q in fallback_queries:
+                    snips = await _retrieve_one(r, q, n_per_query, cache, sem)
+                    for s in snips:
+                        key = str(s.url)
+                        if key not in seen:
+                            seen.add(key)
+                            merged.append(s)
+
         return sp.section_name, merged
 
     pairs = await asyncio.gather(*[_per_section(sp) for sp in plan.section_plans])

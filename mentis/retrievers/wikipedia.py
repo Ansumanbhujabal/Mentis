@@ -19,8 +19,14 @@ class WikipediaRetriever:
     source_kind = "background"
 
     async def search(self, query: str, n: int = 1) -> list[Snippet]:
+        # Wikipedia REST API requires a User-Agent or returns 403 Forbidden.
+        # Per Wikimedia policy, identify the app + contact URL.
+        headers = {
+            "User-Agent": "Mentis/0.1 (https://github.com/Ansumanbhujabal/Mentis) procurement-intelligence-poc",
+            "Accept": "application/json",
+        }
         title = quote(query.replace(" ", "_"))
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with httpx.AsyncClient(timeout=30.0, headers=headers) as client:
             try:
                 r = await client.get(SUMMARY_URL.format(title=title))
                 r.raise_for_status()

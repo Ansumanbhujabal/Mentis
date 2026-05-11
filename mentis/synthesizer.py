@@ -83,14 +83,17 @@ async def synthesize_section(
 ) -> SectionDraft:
     """Run synthesizer with citation grounding + safety chain + retry-on-hallucination."""
     if not snippets:
+        # NOT a synth failure or safety block — just no data found. Don't set
+        # fallback_to_raw_snippets (that flag triggers the misleading safety-filter
+        # footer in render_markdown).
         return SectionDraft(
             section_name=section_name,
-            prose="*No sources retrieved for this section.*",
+            prose="*No sources found for this section. Try a more specific or alternative substance name, or check that the retrieval APIs (PubMed, OpenFDA, Wikipedia, Tavily) are reachable.*",
             snippets_used=[],
             citations=[],
             synthesizer_version=SYNTH_VERSION,
             safety_retries=0,
-            fallback_to_raw_snippets=True,
+            fallback_to_raw_snippets=False,
         )
 
     registry = PromptRegistry(in_repo_dir=prompts_dir)
