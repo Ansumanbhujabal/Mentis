@@ -147,26 +147,13 @@ async def _run_pipeline(query: str, out: Path | None, pdf: Path | None, do_polis
             click.echo(f"      → wrote {polished_md_path}  (polished)")
         if pdf:
             polished_pdf_path = pdf.with_name(pdf.stem + "_polished" + pdf.suffix)
-            from mentis.pdf import _md_to_html
-            from weasyprint import HTML  # type: ignore
-            html_str = (
-                "<!doctype html><html><head><meta charset='utf-8'><style>"
-                "@page { size: A4; margin: 1.5cm; @bottom-center { content: 'Page ' counter(page) ' of ' counter(pages); font-size: 9pt; color: #888; } } "
-                "body { font-family: Helvetica, Arial, sans-serif; color: #1a1a1a; font-size: 11pt; line-height: 1.5; } "
-                "h1 { font-size: 18pt; border-bottom: 3px solid #1a1a1a; padding-bottom: 0.4em; } "
-                "h2 { font-size: 13pt; border-bottom: 1px solid #ccc; padding-bottom: 0.3em; margin-top: 1.5em; } "
-                "p { text-align: justify; } "
-                "a { color: #0a4d8c; text-decoration: none; } "
-                "table { border-collapse: collapse; width: 100%; margin: 0.8em 0; font-size: 10pt; } "
-                "th, td { border: 1px solid #ccc; padding: 6px 8px; text-align: left; vertical-align: top; } "
-                "th { background: #f4f4f0; }"
-                "</style></head><body>" + _md_to_html(polished_md) + "</body></html>"
-            )
-            try:
-                Path(polished_pdf_path).write_bytes(HTML(string=html_str, base_url=".").write_pdf())
+            from mentis.pdf import polished_markdown_to_pdf_bytes
+            pdf_bytes = polished_markdown_to_pdf_bytes(polished_md)
+            if pdf_bytes:
+                Path(polished_pdf_path).write_bytes(pdf_bytes)
                 click.echo(f"      → wrote {polished_pdf_path}  (polished)")
-            except Exception as e:
-                click.echo(f"      ✗ Polished PDF render failed: {e!r}", err=True)
+            else:
+                click.echo("      ✗ Polished PDF render failed", err=True)
 
 
 @cli.group()
