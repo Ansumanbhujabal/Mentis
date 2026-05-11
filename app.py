@@ -138,5 +138,8 @@ def build_app() -> gr.Blocks:
     return app
 
 
+# Top-level demo so HF Spaces' runner can pick it up at import time.
+demo = build_app()
+
 if __name__ == "__main__":
-    build_app().launch()
+    demo.launch(server_name="0.0.0.0", server_port=7860, show_api=False)
